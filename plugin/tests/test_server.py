@@ -31,17 +31,15 @@ import os
 import sys
 import tempfile
 import unittest
-from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 # Make `import server` work — server.py lives one level up.
 sys.path.insert(
-    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "server")
+  0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "server")
 )
 
 import server  # noqa: E402
-
 
 # Real session ids look like UUIDs in production.
 SID_A = "a6b2671d-8b9f-4236-bebe-f7e12f599907"
@@ -65,14 +63,14 @@ def _make_message(text, from_id, *, reply_to_message_id=None):
   with just the fields the on_message handler reads is sufficient.
   """
   reply_to = (
-      SimpleNamespace(message_id=reply_to_message_id)
-      if reply_to_message_id is not None
-      else None
+    SimpleNamespace(message_id=reply_to_message_id)
+    if reply_to_message_id is not None
+    else None
   )
   msg = SimpleNamespace(
-      text=text,
-      from_user=SimpleNamespace(id=int(from_id)),
-      reply_to_message=reply_to,
+    text=text,
+    from_user=SimpleNamespace(id=int(from_id)),
+    reply_to_message=reply_to,
   )
   return SimpleNamespace(message=msg, callback_query=None)
 
@@ -80,11 +78,11 @@ def _make_message(text, from_id, *, reply_to_message_id=None):
 def _make_callback(data, from_id):
   """Construct a minimal Update.callback_query-shaped object."""
   q = SimpleNamespace(
-      data=data,
-      from_user=SimpleNamespace(id=int(from_id)),
-      answer=AsyncMock(),
-      edit_message_text=AsyncMock(),
-      message=SimpleNamespace(message_id=12345, text=""),
+    data=data,
+    from_user=SimpleNamespace(id=int(from_id)),
+    answer=AsyncMock(),
+    edit_message_text=AsyncMock(),
+    message=SimpleNamespace(message_id=12345, text=""),
   )
   return SimpleNamespace(message=None, callback_query=q)
 
@@ -99,7 +97,7 @@ def _make_bridge(user_id=USER_ID, *, with_pending_replies=None):
     for mid, sid in with_pending_replies:
       fut = asyncio.get_event_loop().create_future()
       bridge.pending_replies[mid] = server.PendingReply(
-          future=fut, session_id=sid, prompt_message_id=mid
+        future=fut, session_id=sid, prompt_message_id=mid
       )
   return bridge
 
@@ -110,7 +108,6 @@ def _make_bridge(user_id=USER_ID, *, with_pending_replies=None):
 
 
 class TestSentinels(unittest.TestCase):
-
   def setUp(self):
     self._patch, self.tmpdir = _isolated_sentinel_dir()
     self._patch.start()
@@ -163,6 +160,7 @@ class TestSentinels(unittest.TestCase):
   def test_subscriber_count_zero_when_dir_missing(self):
     """Fresh install has no SUBSCRIPTION_DIR yet."""
     import shutil
+
     shutil.rmtree(self.tmpdir)
     self.assertEqual(server._subscriber_count(), 0)
 
@@ -179,19 +177,22 @@ class TestSentinels(unittest.TestCase):
 
 
 class TestInputKey(unittest.TestCase):
-
   def test_bash_command_keys_on_command(self):
     key = server._input_key("Bash", {"command": "git push origin main"})
     self.assertIn("Bash", key)
     self.assertIn("git push", key)
 
   def test_edit_keys_on_file_path(self):
-    key = server._input_key("Edit", {"file_path": "/tmp/x.py", "old_string": "..."})
+    key = server._input_key(
+      "Edit", {"file_path": "/tmp/x.py", "old_string": "..."}
+    )
     self.assertIn("Edit", key)
     self.assertIn("/tmp/x.py", key)
 
   def test_unknown_tool_falls_back_to_name(self):
-    self.assertEqual(server._input_key("UnknownTool", {"foo": "bar"}), "UnknownTool")
+    self.assertEqual(
+      server._input_key("UnknownTool", {"foo": "bar"}), "UnknownTool"
+    )
 
   def test_non_dict_input(self):
     self.assertEqual(server._input_key("X", "string-input"), "X")
@@ -205,14 +206,13 @@ class TestInputKey(unittest.TestCase):
 
 
 class TestFormatRequest(unittest.TestCase):
-
   def test_html_escaping_command(self):
     """Critical: tool_input.command must be HTML-escaped to prevent injection."""
     payload = {
-        "session_id": SID_A,
-        "tool_name": "Bash",
-        "tool_input": {"command": "<script>alert('xss')</script>"},
-        "cwd": "/tmp",
+      "session_id": SID_A,
+      "tool_name": "Bash",
+      "tool_input": {"command": "<script>alert('xss')</script>"},
+      "cwd": "/tmp",
     }
     text = server._format_request(payload, "abc123")
     self.assertNotIn("<script>", text)
@@ -220,31 +220,31 @@ class TestFormatRequest(unittest.TestCase):
 
   def test_long_field_truncation(self):
     payload = {
-        "session_id": SID_A,
-        "tool_name": "Bash",
-        "tool_input": {"command": "x" * 5000},
-        "cwd": "/tmp",
+      "session_id": SID_A,
+      "tool_name": "Bash",
+      "tool_input": {"command": "x" * 5000},
+      "cwd": "/tmp",
     }
     text = server._format_request(payload, "abc")
     self.assertIn("…[truncated]", text)
 
   def test_includes_request_id(self):
     text = server._format_request(
-        {"session_id": SID_A, "tool_name": "X", "tool_input": {}, "cwd": "/"},
-        "rid_xyz",
+      {"session_id": SID_A, "tool_name": "X", "tool_input": {}, "cwd": "/"},
+      "rid_xyz",
     )
     self.assertIn("rid_xyz", text)
 
   def test_headline_shape(self):
     """Headline shape per design: `🔧 Session [abc123] <b>Bash</b> [rid]`."""
     text = server._format_request(
-        {
-            "session_id": SID_A,
-            "tool_name": "Bash",
-            "tool_input": {"command": "ls"},
-            "cwd": "/",
-        },
-        "rid",
+      {
+        "session_id": SID_A,
+        "tool_name": "Bash",
+        "tool_input": {"command": "ls"},
+        "cwd": "/",
+      },
+      "rid",
     )
     first_line = text.split("\n", 1)[0]
     # Tool icon → session tag → tool name → request id, all on one line.
@@ -255,7 +255,6 @@ class TestFormatRequest(unittest.TestCase):
 
 
 class TestSessionTag(unittest.TestCase):
-
   def test_truncates_to_session_tag_len(self):
     self.assertEqual(server._session_tag(SID_A), f"Session [{SID_A[:6]}]")
 
@@ -273,13 +272,12 @@ class TestSessionTag(unittest.TestCase):
 
 
 class TestOnMessage(unittest.IsolatedAsyncioTestCase):
-
   async def test_reply_to_resolves_specific_pending(self):
     bridge = _make_bridge(
-        with_pending_replies=[(100, SID_A), (200, SID_B), (300, SID_A)]
+      with_pending_replies=[(100, SID_A), (200, SID_B), (300, SID_A)]
     )
     msg = _make_message(
-        "answer for B", from_id=USER_ID, reply_to_message_id=200
+      "answer for B", from_id=USER_ID, reply_to_message_id=200
     )
     await bridge.on_message(msg, None)
     # The reply-to entry was resolved; the others remain.
@@ -317,12 +315,12 @@ class TestOnMessage(unittest.IsolatedAsyncioTestCase):
     """Photo/sticker messages have msg.text=None → skip without error."""
     bridge = _make_bridge(with_pending_replies=[(100, SID_A)])
     msg_with_no_text = SimpleNamespace(
-        message=SimpleNamespace(
-            text=None,
-            from_user=SimpleNamespace(id=int(USER_ID)),
-            reply_to_message=None,
-        ),
-        callback_query=None,
+      message=SimpleNamespace(
+        text=None,
+        from_user=SimpleNamespace(id=int(USER_ID)),
+        reply_to_message=None,
+      ),
+      callback_query=None,
     )
     await bridge.on_message(msg_with_no_text, None)
     self.assertIn(100, bridge.pending_replies)
@@ -331,7 +329,7 @@ class TestOnMessage(unittest.IsolatedAsyncioTestCase):
     """If reply_to.message_id isn't in our pending dict, fall back to FIFO."""
     bridge = _make_bridge(with_pending_replies=[(100, SID_A), (200, SID_B)])
     msg = _make_message(
-        "reply to a different bot", from_id=USER_ID, reply_to_message_id=999
+      "reply to a different bot", from_id=USER_ID, reply_to_message_id=999
     )
     await bridge.on_message(msg, None)
     # Falls through to FIFO → 100 (oldest) wins.
@@ -344,12 +342,11 @@ class TestOnMessage(unittest.IsolatedAsyncioTestCase):
 
 
 class TestOnCallback(unittest.IsolatedAsyncioTestCase):
-
   async def test_approve_resolves_pending(self):
     bridge = _make_bridge()
     fut = asyncio.get_event_loop().create_future()
     bridge.pending["abc"] = server.PendingApproval(
-        future=fut, text="<b>fake prompt</b>", message_id=42, input_key="Bash|cmd"
+      future=fut, text="<b>fake prompt</b>", message_id=42, input_key="Bash|cmd"
     )
     cb = _make_callback("a:abc", from_id=USER_ID)
     await bridge.on_callback(cb, None)
@@ -360,7 +357,7 @@ class TestOnCallback(unittest.IsolatedAsyncioTestCase):
     bridge = _make_bridge()
     fut = asyncio.get_event_loop().create_future()
     bridge.pending["abc"] = server.PendingApproval(
-        future=fut, text="x", message_id=42, input_key="x"
+      future=fut, text="x", message_id=42, input_key="x"
     )
     cb = _make_callback("d:abc", from_id=USER_ID)
     await bridge.on_callback(cb, None)
@@ -370,7 +367,7 @@ class TestOnCallback(unittest.IsolatedAsyncioTestCase):
     bridge = _make_bridge()
     fut = asyncio.get_event_loop().create_future()
     bridge.pending["abc"] = server.PendingApproval(
-        future=fut, text="x", message_id=42, input_key="x"
+      future=fut, text="x", message_id=42, input_key="x"
     )
     cb = _make_callback("a:abc", from_id=STRANGER_ID)
     await bridge.on_callback(cb, None)
@@ -391,7 +388,6 @@ class TestOnCallback(unittest.IsolatedAsyncioTestCase):
 
 
 class TestStatusString(unittest.TestCase):
-
   def setUp(self):
     self._patch, _ = _isolated_sentinel_dir()
     self._patch.start()
