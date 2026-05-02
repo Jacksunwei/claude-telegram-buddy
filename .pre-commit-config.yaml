@@ -2,13 +2,41 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-      - id: check-yaml
-        args: [--allow-multiple-documents]
-      - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: pretty-format-json
+        args: [--autofix, --no-sort-keys, --indent=2]
+  - repo: https://github.com/PyCQA/isort
+    rev: 8.0.1
     hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
+      - id: isort
+  - repo: https://github.com/google/pyink
+    rev: 25.12.0
+    hooks:
+      - id: pyink
+        args: [--pyink-indentation=2]
+  - repo: local
+    hooks:
+      - id: addlicense
+        name: addlicense
+        entry: >
+          bash -c 'if command -v addlicense >/dev/null 2>&1;
+          then addlicense -c "Wei (Jack) Sun" -l apache "$@";
+          else echo "Warning: addlicense not installed, skipping"; fi' --
+        language: system
+        files: \.(py|sh)$
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.22
+    hooks:
+      - id: mdformat
+        files: (^|/)README\.md$
+        args: [--wrap=120]
+        additional_dependencies:
+          - mdformat-gfm
