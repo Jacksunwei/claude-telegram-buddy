@@ -1,0 +1,98 @@
+{
+  "name": "telegram-buddy",
+  "version": "1.0.0",
+  "description": "Hand off your Claude Code session from terminal to phone (and back) without losing context",
+  "author": {
+    "name": "Wei (Jack) Sun"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/Jacksunwei/claude-telegram-buddy",
+  "repository": "https://github.com/Jacksunwei/claude-telegram-buddy",
+  "keywords": [
+    "mcp",
+    "claude-code",
+    "permissions",
+    "telegram",
+    "hooks",
+    "remote-approval"
+  ],
+  "userConfig": {
+    "telegram_bot_token": {
+      "type": "string",
+      "title": "Telegram Bot Token",
+      "description": "From BotFather: open Telegram, message @BotFather, run /newbot, follow the prompts, copy the HTTP API token.",
+      "sensitive": true,
+      "required": true
+    },
+    "user_id": {
+      "type": "string",
+      "title": "Telegram User ID",
+      "description": "Your numeric Telegram user ID. To get it: message @userinfobot on Telegram and copy the 'Id' value. Used as both the trust anchor (incoming messages from other users are discarded) and the chat target in DM mode. After install, DM your bot once so Telegram allows it to message you back.",
+      "required": true
+    }
+  },
+  "mcpServers": {
+    "telegram-buddy": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--script",
+        "${CLAUDE_PLUGIN_ROOT}/server/server.py"
+      ],
+      "env": {
+        "TELEGRAM_BUDDY_BOT_TOKEN": "${user_config.telegram_bot_token}",
+        "TELEGRAM_BUDDY_USER_ID": "${user_config.user_id}"
+      }
+    }
+  },
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -fsS -X POST -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:52891/approve 2>/dev/null || echo '{}'",
+            "timeout": 28800
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:52891/posttooluse 2>/dev/null || true",
+            "timeout": 30,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dock-blocker.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dock-reinjector.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

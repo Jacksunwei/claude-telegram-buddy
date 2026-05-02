@@ -1,0 +1,17 @@
+{
+  "name": "telegram-buddy",
+  "owner": {
+    "name": "Wei (Jack) Sun"
+  },
+  "metadata": {
+    "description": "Single-plugin marketplace for telegram-buddy",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "telegram-buddy",
+      "source": "./plugin",
+      "description": "Hand off your Claude Code session from terminal to phone (and back) without losing context"
+    }
+  ]
+}
