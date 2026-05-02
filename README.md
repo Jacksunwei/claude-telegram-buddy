@@ -1,8 +1,27 @@
-# telegram-buddy
+# Claude Telegram Buddy
 
-A Claude Code plugin for **bidirectional terminal ↔ phone handoff**: start work in the Claude Code terminal, step away, continue from your phone via Telegram, and seamlessly resume back at the terminal when you return.
+![Telegram Buddy: hand off your Claude Code session to your phone](./docs/hero-pixel.png)
 
-> **Distinct from "Claude Code as Telegram chatbot" tools.** This plugin extends an *already-running* terminal session to your phone. The terminal is the persistent home; the phone is a temporary remote control.
+A Claude Code plugin for **driving an active Claude session from your phone when you have to step away from the desk**.
+
+> **Not a "Claude Code as Telegram chatbot" tool.** This plugin extends an *already-running* terminal session to your
+> phone. The terminal is the persistent home; the phone is a temporary remote control.
+
+## Step away, come back — daily routine
+
+The whole workflow is three moments, three slash commands.
+
+**1. Before you go** — pick the mode that fits how long you'll be away:
+
+- `/telegram-buddy:dock-approvals` — for quick errands. Phone buzzes for each permission prompt; tap ✅ Approve or ❌
+  Deny.
+- `/telegram-buddy:dock-chat` — for leaving the desk entirely. The whole conversation routes to Telegram; your replies
+  become Claude's next prompt.
+
+**2. While you're gone** — Claude keeps working. Your phone is the terminal: glance, tap, reply.
+
+**3. When you're back** — `/telegram-buddy:undock`. The terminal is exactly where you left it. Scrollback intact,
+session never died.
 
 ## Install
 
@@ -11,24 +30,21 @@ A Claude Code plugin for **bidirectional terminal ↔ phone handoff**: start wor
 /plugin install telegram-buddy@telegram-buddy
 ```
 
-Then `/plugin` → telegram-buddy → **Configure options** to paste your bot token and Telegram user ID. See [`plugin/README.md`](./plugin/README.md) for full setup, configuration, and slash-command reference.
+### First-time setup
 
-## Two modes
+Get two things from Telegram:
 
-- **`/telegram-buddy:dock-approvals`** — buttons-on-phone for permission prompts. Two-thumb operation; great for stepping away briefly.
-- **`/telegram-buddy:dock-chat`** — full conversational handoff. Every assistant turn routes through Telegram via `wait_for_user`; replies become Claude's next user message. Hook-enforced so Claude can't accidentally drop the contract.
+1. **Bot token** — DM [@BotFather](https://t.me/BotFather), run `/newbot`, follow the prompts, copy the HTTP API token.
+1. **Your user ID** — DM [@userinfobot](https://t.me/userinfobot) and copy the `Id` it returns.
 
-`/telegram-buddy:undock` lifts both. Bring the session home; scrollback is intact.
+The `install` command prompts you for both — paste them in. Then **DM your bot once** (any message); Telegram requires
+you to initiate before a bot can message you back.
 
-## Repository layout
+### Re-configuring
 
-- `plugin/` — the Claude Code plugin tree (manifest, MCP server, slash commands, hooks, tests).
-- `.claude-plugin/marketplace.json` — single-plugin marketplace manifest (this is what `/plugin marketplace add` reads).
+To rotate the bot token, switch bots, or change your user ID: `/plugin` → telegram-buddy → **Configure options** →
+update values → `/reload-plugins`.
 
 ## License
 
 Apache-2.0 — see [LICENSE](./LICENSE).
-
----
-
-> **TODO:** rewrite this README around the killer use-case story (terminal → phone → terminal round-trip) with screenshots and a daily-loop walkthrough. Today's draft is functional but not promotional.
