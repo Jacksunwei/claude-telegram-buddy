@@ -1,0 +1,21 @@
+# IDE / code-tracing only — NOT used at runtime.
+#
+# The plugin ships its deps in PEP 723 inline metadata at the top of
+# plugin/server/server.py; uv installs them on first launch.
+# This file mirrors those deps so a single venv at ./.venv can resolve
+# imports for jump-to-definition, autocomplete, and debugging in the IDE.
+#
+# Sync manually when server.py adds or bumps a dep.
+#
+# Setup:
+#   uv venv
+#   uv pip install -r requirements-dev.txt
+#   # then point your IDE at .venv/bin/python
+
+mcp[cli]>=1.27.0              # MCP server framework
+aiohttp>=3.9                  # HTTP bridge between sessions and host
+python-telegram-bot>=21.0     # Telegram Bot API client
+claude-agent-sdk>=0.1.0       # typed PermissionRequestHookInput
+
+# Tooling
+pre-commit>=4.0               # `pre-commit install` + ruff format/lint hooks
