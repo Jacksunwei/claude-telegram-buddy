@@ -16,6 +16,7 @@ mcp[cli]>=1.27.0              # MCP server framework
 aiohttp>=3.9                  # HTTP bridge between sessions and host
 python-telegram-bot>=21.0     # Telegram Bot API client
 claude-agent-sdk>=0.1.0       # typed PermissionRequestHookInput
+telegramify-markdown>=1.0.0   # Markdown → Telegram MarkdownV2 (chat-mode bodies)
 
 # Tooling
 pre-commit>=4.0               # `pre-commit install` + ruff format/lint hooks

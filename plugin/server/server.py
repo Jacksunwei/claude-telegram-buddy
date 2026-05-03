@@ -6,6 +6,7 @@
 #   "aiohttp>=3.9",
 #   "python-telegram-bot>=21.0",
 #   "claude-agent-sdk>=0.1.0",
+#   "telegramify-markdown>=1.0.0",
 # ]
 # ///
 # Copyright 2026 Wei (Jack) Sun
@@ -57,21 +58,22 @@ import secrets
 import tempfile
 from dataclasses import dataclass
 
+import telegramify_markdown
 from aiohttp import ClientSession, web
 from claude_agent_sdk.types import HookJSONOutput, PermissionRequestHookInput
 from mcp.server.fastmcp import FastMCP
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
-  Application,
-  CallbackQueryHandler,
-  ContextTypes,
-  MessageHandler,
-  filters,
+    Application,
+    CallbackQueryHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
 )
 
 PORT = 52891
 HOOK_TIMEOUT_S = (
-  28700  # leaves headroom under the 28800s (8h) hook timeout in plugin.json
+    28700  # leaves headroom under the 28800s (8h) hook timeout in plugin.json
 )
 # Bound how long wait_for_user blocks. Matches the approval-hook ceiling so
 # the operator-facing latency story is consistent across flows.
@@ -83,9 +85,7 @@ HEARTBEAT_INTERVAL_S = 30
 
 # Crude file logging for diagnosing hook deliveries when MCP server stderr
 # is not easily reachable. Per-PID so concurrent MCP servers don't trample.
-LOG_PATH = os.path.join(
-  tempfile.gettempdir(), f"telegram-buddy.{os.getpid()}.log"
-)
+LOG_PATH = os.path.join(tempfile.gettempdir(), f"telegram-buddy.{os.getpid()}.log")
 
 # Sentinel directory. One file per opted-in session (subscription marker)
 # plus an optional `.docked` companion when chat-dock mode is active.
@@ -93,9 +93,7 @@ LOG_PATH = os.path.join(
 # and "should the dock hooks fire for this session?". Survives the host MCP
 # server dying so a new host elected via bind-race instantly knows the full
 # subscriber + dock state.
-SUBSCRIPTION_DIR = os.path.join(
-  tempfile.gettempdir(), "telegram-buddy", "sessions"
-)
+SUBSCRIPTION_DIR = os.path.join(tempfile.gettempdir(), "telegram-buddy", "sessions")
 
 
 def _log(msg: str) -> None:
@@ -161,9 +159,7 @@ def _is_docked(session_id: str | None) -> bool:
 def _subscriber_count() -> int:
   try:
     # `<session>.docked` sentinels are companions, not separate subscribers.
-    return sum(
-      1 for n in os.listdir(SUBSCRIPTION_DIR) if not n.endswith(".docked")
-    )
+    return sum(1 for n in os.listdir(SUBSCRIPTION_DIR) if not n.endswith(".docked"))
   except FileNotFoundError:
     return 0
 
@@ -215,9 +211,21 @@ def _session_tag(session_id) -> str:
   return f"Session [{str(session_id)[:SESSION_TAG_LEN]}]"
 
 
-def _format_request(
-  payload: PermissionRequestHookInput, request_id: str
-) -> str:
+def _session_tag_md(session_id) -> str:
+  """MarkdownV2-escaped variant of `_session_tag`.
+
+  Used by `handle_chat_message`, which sends with parse_mode="MarkdownV2"
+  because the body is rendered by `telegramify_markdown.markdownify`. The
+  `[` and `]` in the tag are MarkdownV2 link delimiters and must be
+  backslash-escaped; the rest of the tag is alphanumeric (UUID prefix)
+  so no other escaping is needed.
+  """
+  if not session_id:
+    return r"Session \[?\]"
+  return rf"Session \[{str(session_id)[:SESSION_TAG_LEN]}\]"
+
+
+def _format_request(payload: PermissionRequestHookInput, request_id: str) -> str:
   session_id = payload.get("session_id", "")
   tool = payload.get("tool_name", "?")
   inp = payload.get("tool_input") or {}
@@ -234,9 +242,9 @@ def _format_request(
   # Tool icon leads the headline to mirror the 💬 prefix on chat messages.
   # Body: command preview + cwd, separated from the headline by a blank line.
   return (
-    f"🔧 {_session_tag(session_id)} <b>{_esc(tool)}</b> <code>[{request_id}]</code>\n"
-    f"{preview}\n"
-    f"<i>cwd</i>: <code>{_esc(cwd)}</code>"
+      f"🔧 {_session_tag(session_id)} <b>{_esc(tool)}</b> <code>[{request_id}]</code>\n"
+      f"{preview}\n"
+      f"<i>cwd</i>: <code>{_esc(cwd)}</code>"
   )
 
 
@@ -253,9 +261,7 @@ def _input_key(tool_name: str, tool_input) -> str:
   for field in ("command", "file_path", "url"):
     if field in tool_input:
       try:
-        return (
-          f"{tool_name}|{field}={json.dumps(tool_input[field], default=str)}"
-        )
+        return f"{tool_name}|{field}={json.dumps(tool_input[field], default=str)}"
       except Exception:
         return f"{tool_name}|{field}={tool_input[field]!r}"
   return tool_name
@@ -269,17 +275,17 @@ def _hook_response(decision: str) -> HookJSONOutput | dict:
   """
   if decision == "allow":
     return {
-      "hookSpecificOutput": {
-        "hookEventName": "PermissionRequest",
-        "decision": {"behavior": "allow"},
-      }
+        "hookSpecificOutput": {
+            "hookEventName": "PermissionRequest",
+            "decision": {"behavior": "allow"},
+        }
     }
   if decision == "deny":
     return {
-      "hookSpecificOutput": {
-        "hookEventName": "PermissionRequest",
-        "decision": {"behavior": "deny", "message": "Denied via Telegram"},
-      }
+        "hookSpecificOutput": {
+            "hookEventName": "PermissionRequest",
+            "decision": {"behavior": "deny", "message": "Denied via Telegram"},
+        }
     }
   return {}
 
@@ -364,20 +370,14 @@ class TelegramBridge:
 
   # ---- Telegram callback ----
 
-  async def on_callback(
-    self, update: Update, _ctx: ContextTypes.DEFAULT_TYPE
-  ) -> None:
+  async def on_callback(self, update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if not q or not q.data:
       return
     await q.answer()
     # Trust check: only the configured user is allowed to decide.
-    if (
-      self.user_id and q.from_user and str(q.from_user.id) != str(self.user_id)
-    ):
-      _log(
-        f"on_callback: discarding update from untrusted user {q.from_user.id}"
-      )
+    if self.user_id and q.from_user and str(q.from_user.id) != str(self.user_id):
+      _log(f"on_callback: discarding update from untrusted user {q.from_user.id}")
       return
     try:
       action, rid = q.data.split(":", 1)
@@ -394,15 +394,11 @@ class TelegramBridge:
     prior = entry.text if entry else None
     if prior is not None:
       try:
-        await q.edit_message_text(
-          text=f"{prior}\n\n{suffix}", parse_mode="HTML"
-        )
+        await q.edit_message_text(text=f"{prior}\n\n{suffix}", parse_mode="HTML")
       except Exception:
         pass
 
-  async def on_message(
-    self, update: Update, _ctx: ContextTypes.DEFAULT_TYPE
-  ) -> None:
+  async def on_message(self, update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Route a free-text Telegram message to the matching wait_for_user call.
 
     Match priority:
@@ -418,21 +414,12 @@ class TelegramBridge:
       return
     # Trust check against user_id (the human), NOT chat_id (which would be
     # the group in group mode).
-    if (
-      self.user_id
-      and msg.from_user
-      and str(msg.from_user.id) != str(self.user_id)
-    ):
-      _log(
-        f"on_message: discarding update from untrusted user {msg.from_user.id}"
-      )
+    if self.user_id and msg.from_user and str(msg.from_user.id) != str(self.user_id):
+      _log(f"on_message: discarding update from untrusted user {msg.from_user.id}")
       return
 
     target_id: int | None = None
-    if (
-      msg.reply_to_message
-      and msg.reply_to_message.message_id in self.pending_replies
-    ):
+    if msg.reply_to_message and msg.reply_to_message.message_id in self.pending_replies:
       target_id = msg.reply_to_message.message_id
     elif self.pending_replies:
       target_id = next(iter(self.pending_replies))
@@ -459,30 +446,30 @@ class TelegramBridge:
     text = _format_request(payload, rid)
 
     keyboard = InlineKeyboardMarkup(
-      [
         [
-          InlineKeyboardButton("✅ Approve", callback_data=f"a:{rid}"),
-          InlineKeyboardButton("❌ Deny", callback_data=f"d:{rid}"),
+            [
+                InlineKeyboardButton("✅ Approve", callback_data=f"a:{rid}"),
+                InlineKeyboardButton("❌ Deny", callback_data=f"d:{rid}"),
+            ]
         ]
-      ]
     )
     try:
       sent = await self.tg_app.bot.send_message(
-        chat_id=self.chat_id,
-        text=text,
-        reply_markup=keyboard,
-        parse_mode="HTML",
+          chat_id=self.chat_id,
+          text=text,
+          reply_markup=keyboard,
+          parse_mode="HTML",
       )
     except Exception:
       return web.json_response({})
 
     self.pending[rid] = PendingApproval(
-      future=fut,
-      text=text,
-      message_id=sent.message_id,
-      input_key=_input_key(
-        payload.get("tool_name", "?"), payload.get("tool_input") or {}
-      ),
+        future=fut,
+        text=text,
+        message_id=sent.message_id,
+        input_key=_input_key(
+            payload.get("tool_name", "?"), payload.get("tool_input") or {}
+        ),
     )
 
     try:
@@ -538,41 +525,46 @@ class TelegramBridge:
       return web.json_response({"error": "missing message_to_user"}, status=400)
     if not _is_subscribed(caller):
       return web.json_response(
-        {"error": "session not subscribed; call dock_chat first"},
-        status=409,
+          {"error": "session not subscribed; call dock_chat first"},
+          status=409,
       )
     if self.tg_app is None or self.chat_id is None:
       return web.json_response({"error": "bridge not ready"}, status=503)
 
-    # Headline: 💬 Session [abc123]
-    # Body: the actual message, separated from the headline by a blank line.
-    text = (
-      f"💬 {_session_tag(caller)}\n\n" f"{_esc(message_to_user, max_len=3500)}"
-    )
+    # Truncate the raw message FIRST so we don't cut a code fence or link
+    # in half during markdown conversion. The trailing marker shows the
+    # operator that the original message was longer than this preview.
+    truncated = message_to_user
+    if len(truncated) > 3500:
+      truncated = truncated[:3500] + "\n\n…[truncated]"
+
+    # Convert Claude's markdown to Telegram-compatible MarkdownV2.
+    # telegramify_markdown handles escaping of MarkdownV2 special chars
+    # in the body and downgrades unsupported features (headers→bold,
+    # lists→indented). Headline is hand-escaped via `_session_tag_md`.
+    body_md = telegramify_markdown.markdownify(truncated)
+    text = f"💬 {_session_tag_md(caller)}\n\n{body_md}"
+
     try:
       sent = await self.tg_app.bot.send_message(
-        chat_id=self.chat_id,
-        text=text,
-        parse_mode="HTML",
+          chat_id=self.chat_id,
+          text=text,
+          parse_mode="MarkdownV2",
       )
     except Exception as e:
-      return web.json_response(
-        {"error": f"telegram send failed: {e}"}, status=502
-      )
+      return web.json_response({"error": f"telegram send failed: {e}"}, status=502)
 
     fut: asyncio.Future = asyncio.get_event_loop().create_future()
     self.pending_replies[sent.message_id] = PendingReply(
-      future=fut,
-      session_id=caller,
-      prompt_message_id=sent.message_id,
+        future=fut,
+        session_id=caller,
+        prompt_message_id=sent.message_id,
     )
     try:
       reply = await asyncio.wait_for(fut, timeout=WAIT_TIMEOUT_S)
     except asyncio.TimeoutError:
       self.pending_replies.pop(sent.message_id, None)
-      return web.json_response(
-        {"error": "timeout waiting for reply"}, status=504
-      )
+      return web.json_response({"error": "timeout waiting for reply"}, status=504)
     return web.json_response({"reply": reply})
 
   async def handle_health(self, _request: web.Request) -> web.Response:
@@ -583,11 +575,11 @@ class TelegramBridge:
     map) so promoted standbys can rehydrate routing.
     """
     return web.json_response(
-      {
-        "host_session_id": self.own_session_id,
-        "pid": os.getpid(),
-        "subscribers": _subscriber_count(),
-      }
+        {
+            "host_session_id": self.own_session_id,
+            "pid": os.getpid(),
+            "subscribers": _subscriber_count(),
+        }
     )
 
   # ---- Lifecycle (called by MCP tools) ----
@@ -601,16 +593,16 @@ class TelegramBridge:
     user_id = os.environ.get("TELEGRAM_BUDDY_USER_ID")
     if not user_id:
       return (
-        "No user_id. Reconfigure the plugin (`/plugin` → telegram-buddy → "
-        "Configure options) to set the Telegram User ID."
+          "No user_id. Reconfigure the plugin (`/plugin` → telegram-buddy → "
+          "Configure options) to set the Telegram User ID."
       )
 
     token = os.environ.get("TELEGRAM_BUDDY_BOT_TOKEN")
     if not token:
       return (
-        "No bot token. Reconfigure the plugin (`/plugin` → telegram-buddy → "
-        "Configure options) to set the Telegram Bot Token, or set the "
-        "TELEGRAM_BUDDY_BOT_TOKEN env var for standalone testing."
+          "No bot token. Reconfigure the plugin (`/plugin` → telegram-buddy → "
+          "Configure options) to set the Telegram Bot Token, or set the "
+          "TELEGRAM_BUDDY_BOT_TOKEN env var for standalone testing."
       )
 
     _add_subscription(session_id)
@@ -618,21 +610,21 @@ class TelegramBridge:
 
     if self.enabled:
       return (
-        f"Already enabled (host). user_id={self.user_id} port={PORT} "
-        f"subscribers={_subscriber_count()}."
+          f"Already enabled (host). user_id={self.user_id} port={PORT} "
+          f"subscribers={_subscriber_count()}."
       )
 
     if await self._try_become_host(token):
       return (
-        f"Enabled (host). Approvals route to user {user_id}. "
-        f"Listener on 127.0.0.1:{PORT}. Telegram polling starting in "
-        f"background — check status."
+          f"Enabled (host). Approvals route to user {user_id}. "
+          f"Listener on 127.0.0.1:{PORT}. Telegram polling starting in "
+          f"background — check status."
       )
 
     self._ensure_heartbeat(token)
     return (
-      f"Enabled (standby). Existing host on 127.0.0.1:{PORT} routes our "
-      f"prompts; we'll take over within ~{HEARTBEAT_INTERVAL_S}s if it exits."
+        f"Enabled (standby). Existing host on 127.0.0.1:{PORT} routes our "
+        f"prompts; we'll take over within ~{HEARTBEAT_INTERVAL_S}s if it exits."
     )
 
   async def _try_become_host(self, token: str) -> bool:
@@ -703,9 +695,7 @@ class TelegramBridge:
         _log("heartbeat: promoted to host")
         return
 
-  async def _start_polling_with_retry(
-    self, token: str, max_attempts: int = 12
-  ) -> None:
+  async def _start_polling_with_retry(self, token: str, max_attempts: int = 12) -> None:
     """Start the Telegram bot, retrying on 409 Conflict.
 
     Telegram permits exactly one getUpdates consumer per token. After a host
@@ -716,9 +706,7 @@ class TelegramBridge:
     tg_app.add_handler(CallbackQueryHandler(self.on_callback))
     # filters.TEXT & ~filters.COMMAND: free-text replies to wait_for_user.
     # Bot commands are excluded so they don't get consumed as replies.
-    tg_app.add_handler(
-      MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_message)
-    )
+    tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_message))
     try:
       await tg_app.initialize()
       await tg_app.start()
@@ -738,8 +726,8 @@ class TelegramBridge:
     for attempt in range(1, max_attempts + 1):
       try:
         await updater.start_polling(
-          drop_pending_updates=True,
-          allowed_updates=["callback_query", "message"],
+            drop_pending_updates=True,
+            allowed_updates=["callback_query", "message"],
         )
         self.polling_state = "active"
         self.polling_error = None
@@ -759,8 +747,8 @@ class TelegramBridge:
 
     self.polling_state = "failed"
     self.polling_error = (
-      f"409 Conflict persisted after {max_attempts} attempts — another "
-      "instance is still polling on this token."
+        f"409 Conflict persisted after {max_attempts} attempts — another "
+        "instance is still polling on this token."
     )
     _log(self.polling_error)
 
@@ -783,8 +771,8 @@ class TelegramBridge:
       return "Disabled. Listener shut down (no remaining subscribers)."
     if self.enabled:
       return (
-        f"Disabled for this session. Listener stays up serving "
-        f"{_subscriber_count()} other subscriber(s)."
+          f"Disabled for this session. Listener stays up serving "
+          f"{_subscriber_count()} other subscriber(s)."
       )
     return "Disabled."
 
@@ -798,17 +786,17 @@ class TelegramBridge:
       role = "off"
     sid = current_session_id or self.own_session_id
     parts = [
-      f"role={role}",
-      f"subscribed={_is_subscribed(sid)}",
-      f"docked={_is_docked(sid)}",
-      f"polling={self.polling_state}",
-      f"user_id={self.user_id}",
-      f"port={PORT}",
-      f"subscribers={_subscriber_count()}",
-      f"pending={len(self.pending)}",
-      f"decided={self.decided}",
-      f"pending_replies={len(self.pending_replies)}",
-      f"replied={self.replied}",
+        f"role={role}",
+        f"subscribed={_is_subscribed(sid)}",
+        f"docked={_is_docked(sid)}",
+        f"polling={self.polling_state}",
+        f"user_id={self.user_id}",
+        f"port={PORT}",
+        f"subscribers={_subscriber_count()}",
+        f"pending={len(self.pending)}",
+        f"decided={self.decided}",
+        f"pending_replies={len(self.pending_replies)}",
+        f"replied={self.replied}",
     ]
     if self.polling_error:
       parts.append(f"polling_error={self.polling_error!r}")
@@ -820,9 +808,7 @@ class TelegramBridge:
     listener: str
     try:
       async with ClientSession() as client:
-        async with client.get(
-          f"http://127.0.0.1:{PORT}/health", timeout=2
-        ) as resp:
+        async with client.get(f"http://127.0.0.1:{PORT}/health", timeout=2) as resp:
           info = await resp.json()
       host = info.get("host_session_id")
       pid = info.get("pid")
@@ -833,9 +819,7 @@ class TelegramBridge:
       else:
         mine = "no"
       preview = (host[:8] + "…") if host else "?"
-      listener = (
-        f"listener=up listener_pid={pid} listener_host={preview} mine={mine}"
-      )
+      listener = f"listener=up listener_pid={pid} listener_host={preview} mine={mine}"
     except Exception:
       listener = "listener=down"
     return f"{base} | {listener}"
@@ -849,10 +833,10 @@ class TelegramBridge:
       return
     try:
       await self.tg_app.bot.edit_message_text(
-        chat_id=self.chat_id,
-        message_id=entry.message_id,
-        text=f"{entry.text}\n\n{suffix}",
-        parse_mode="HTML",
+          chat_id=self.chat_id,
+          message_id=entry.message_id,
+          text=f"{entry.text}\n\n{suffix}",
+          parse_mode="HTML",
       )
     except Exception:
       pass
@@ -924,9 +908,9 @@ _bridge = TelegramBridge()
 # hooks are the primary enforcement; this string is the fallback when the
 # user runs the plugin without hooks (e.g., older Claude Code versions).
 _DOCK_DIRECTIVE_SHORT = (
-  "DOCKED TO TELEGRAM. End every turn that would produce a user-visible "
-  "reply by calling wait_for_user(session_id=..., message_to_user=...) "
-  "instead of stopping. Rule remains until /telegram-buddy:undock."
+    "DOCKED TO TELEGRAM. End every turn that would produce a user-visible "
+    "reply by calling wait_for_user(session_id=..., message_to_user=...) "
+    "instead of stopping. Rule remains until /telegram-buddy:undock."
 )
 
 
@@ -1008,9 +992,7 @@ async def wait_for_user(session_id: str, message_to_user: str) -> str:
   body = {"session_id": session_id, "message_to_user": message_to_user}
   try:
     async with ClientSession() as client:
-      async with client.post(
-        url, json=body, timeout=WAIT_TIMEOUT_S + 60
-      ) as resp:
+      async with client.post(url, json=body, timeout=WAIT_TIMEOUT_S + 60) as resp:
         data = await resp.json()
         if resp.status != 200:
           err = data.get("error", f"http {resp.status}")
