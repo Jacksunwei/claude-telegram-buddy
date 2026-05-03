@@ -7,7 +7,7 @@ A Claude Code plugin for **driving an active Claude session from your phone when
 > **Not a "Claude Code as Telegram chatbot" tool.** This plugin extends an *already-running* terminal session to your
 > phone. The terminal is the persistent home; the phone is a temporary remote control.
 
-## Step away, come back — daily routine
+## Usage - step away, come back
 
 The whole workflow is three moments, three slash commands.
 
