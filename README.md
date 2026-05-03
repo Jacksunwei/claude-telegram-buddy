@@ -13,10 +13,13 @@ The whole workflow is three moments, three slash commands.
 
 **1. Before you go** — pick the mode that fits how long you'll be away:
 
-- `/telegram-buddy:dock-approvals` — for quick errands. Phone buzzes for each permission prompt; tap ✅ Approve or ❌
-  Deny.
-- `/telegram-buddy:dock-chat` — for leaving the desk entirely. The whole conversation routes to Telegram; your replies
-  become Claude's next prompt.
+- `/telegram-buddy:dock-approvals` — for stepping away briefly (coffee, bathroom, a quick meeting). 
+  
+  Phone buzzes for each permission prompt; tap ✅ Approve or ❌ Deny.
+  
+- `/telegram-buddy:dock-chat` — for leaving the desk entirely (lunch, errands, the rest of the afternoon). 
+  
+  The whole conversation routes to Telegram; your replies become Claude's next prompt.
 
 **2. While you're gone** — Claude keeps working. Your phone is the terminal: glance, tap, reply.
 
