@@ -23,8 +23,8 @@ The whole workflow is three moments, three slash commands.
 
 **2. While you're gone** — Claude keeps working. Your phone is the terminal: glance, tap, reply.
 
-**3. When you're back** — `/telegram-buddy:undock`. The terminal is exactly where you left it. Scrollback intact,
-session never died.
+**3. When you're back** — `/telegram-buddy:undock` from the terminal, or just reply `undock` in Telegram. The terminal
+is exactly where you left it. Scrollback intact, session never died.
 
 ## Install
 
