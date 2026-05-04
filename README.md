@@ -35,13 +35,13 @@ session never died.
 
 ### First-time setup
 
-Get two things from Telegram:
+Three quick steps:
 
 1. **Bot token** — DM [@BotFather](https://t.me/BotFather), run `/newbot`, follow the prompts, copy the HTTP API token.
 1. **Your user ID** — DM [@userinfobot](https://t.me/userinfobot) and copy the `Id` it returns.
+1. **DM your new bot once** (any message) — Telegram requires you to initiate before a bot can message you back.
 
-The `install` command prompts you for both — paste them in. Then **DM your bot once** (any message); Telegram requires
-you to initiate before a bot can message you back.
+The `install` command prompts you for the token and user ID — paste them in.
 
 ### Re-configuring
 
