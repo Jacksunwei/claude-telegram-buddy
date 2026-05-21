@@ -64,6 +64,15 @@ reply `undock`) and pick up where you left off.
 
 ## Install
 
+Via the [`jacksunwei-marketplace`](https://github.com/Jacksunwei/jacksunwei-marketplace) index marketplace:
+
+```text
+/plugin marketplace add jacksunwei/jacksunwei-marketplace
+/plugin install telegram-buddy@jacksunwei-marketplace
+```
+
+Or as a standalone one-plugin marketplace:
+
 ```text
 /plugin marketplace add Jacksunwei/claude-telegram-buddy
 /plugin install telegram-buddy@telegram-buddy
